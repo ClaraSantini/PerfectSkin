@@ -40,6 +40,7 @@ Choisis entre 2 et 4 "issues" les plus visibles. Ne mentionne rien d'autre. Ne f
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         max_tokens: 500,
+        temperature: 0,
         messages: [{
           role: 'user',
           content: [
