@@ -196,11 +196,12 @@
     margin-top: 12px;
     border-radius: 10px;
     overflow: hidden;
+    aspect-ratio: 1 / 1;
   }
   #preview {
     width: 100%;
+    height: 100%;
     display: block;
-    max-height: 320px;
     object-fit: cover;
   }
   #marker-canvas {
@@ -209,6 +210,60 @@
     left: 0;
     width: 100%;
     height: 100%;
+  }
+
+  .crop-step { display: none; margin-top: 12px; }
+  .crop-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    touch-action: none;
+    cursor: grab;
+  }
+  .crop-wrap img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+  }
+  .crop-guide {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 82%;
+    height: 100%;
+    border: 3px solid rgba(255,255,255,0.9);
+    border-radius: 50% / 42%;
+    box-shadow: 0 0 0 1000px rgba(0,0,0,0.35);
+    pointer-events: none;
+  }
+  .crop-hint {
+    text-align: center;
+    font-size: 0.76rem;
+    color: #6b7873;
+    margin: 8px 0;
+  }
+  .zoom-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .zoom-row input[type="range"] { flex: 1; }
+  .zoom-row span { font-size: 0.9rem; }
+  .validate-crop-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 13px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
   }
 
   .analyze-btn {
@@ -272,6 +327,53 @@
   }
   .issue-canvas-wrap { border-radius: 10px; overflow: hidden; }
   .issue-canvas-wrap img { width: 100%; display: block; }
+
+  .email-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+  }
+  .send-email-btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .email-status { font-size: 0.76rem; margin: 8px 0 0; min-height: 1.1em; }
+  .email-fallback { display: none; margin-top: 12px; }
+  .email-body-text {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.76rem;
+    font-family: inherit;
+    color: #4a5652;
+    resize: vertical;
+    margin-bottom: 8px;
+  }
+  .copy-btn {
+    width: 100%;
+    padding: 11px;
+    background: #8a3a4d;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .copy-status { font-size: 0.76rem; margin: 6px 0 0; color: var(--primary); min-height: 1.1em; }
   .bar-bg { background: #eef0ef; border-radius: 6px; height: 6px; overflow: hidden; }
   .bar-fill { height: 100%; border-radius: 6px; }
 
@@ -400,6 +502,19 @@
         <button class="camera-cancel" id="camera-cancel" onclick="closeCamera()">Annuler</button>
         <button class="camera-shutter" id="camera-shutter" onclick="shutterCapture()">📸</button>
       </div>
+    </div>
+
+    <div class="crop-step" id="crop-step">
+      <div class="crop-wrap" id="crop-wrap">
+        <img id="crop-img" alt="Photo à recadrer">
+        <div class="crop-guide"></div>
+      </div>
+      <p class="crop-hint">Déplace et zoome pour bien centrer le visage dans l'ovale</p>
+      <div class="zoom-row">
+        <span>🔍</span>
+        <input type="range" id="zoom-slider" min="100" max="250" value="100">
+      </div>
+      <button class="validate-crop-btn" onclick="validateCrop()">✓ Valider le cadrage</button>
     </div>
 
     <div class="photo-wrap" id="photo-wrap">
@@ -542,18 +657,37 @@ const cameraView = document.getElementById('camera-view');
 const cameraVideo = document.getElementById('camera-video');
 let cameraStream = null;
 
+const cropStep = document.getElementById('crop-step');
+const cropWrap = document.getElementById('crop-wrap');
+const cropImg = document.getElementById('crop-img');
+const zoomSlider = document.getElementById('zoom-slider');
+let cropState = { naturalW: 0, naturalH: 0, baseScale: 1, zoom: 1, tx: 0, ty: 0 };
+let dragState = null;
+
 function loadPhotoFromDataUrl(dataUrl) {
   resultZone.innerHTML = '';
   clearCanvas();
   analyzeBtn.style.display = 'none';
   photoWrap.style.display = 'none';
+  cropStep.style.display = 'none';
 
-  preview.onload = () => {
-    photoWrap.style.display = 'block';
-    analyzeBtn.style.display = 'block';
-    sizeCanvas();
+  cropImg.onload = () => {
+    if (!cropImg.naturalWidth || !cropImg.naturalHeight) {
+      resultZone.innerHTML = `
+        <div class="card">
+          <p style="margin:0;font-size:0.85rem;color:#c9542e;">
+            ⚠️ La photo n'a pas pu être chargée correctement. Réessaie avec une autre image.
+          </p>
+        </div>`;
+      return;
+    }
+    cropState.naturalW = cropImg.naturalWidth;
+    cropState.naturalH = cropImg.naturalHeight;
+    zoomSlider.value = 100;
+    cropStep.style.display = 'block';
+    initCrop();
   };
-  preview.onerror = () => {
+  cropImg.onerror = () => {
     resultZone.innerHTML = `
       <div class="card">
         <p style="margin:0;font-size:0.85rem;color:#c9542e;">
@@ -563,7 +697,101 @@ function loadPhotoFromDataUrl(dataUrl) {
         </p>
       </div>`;
   };
-  preview.src = dataUrl;
+  cropImg.src = dataUrl;
+}
+
+function initCrop() {
+  const size = cropWrap.clientWidth;
+  cropState.baseScale = Math.max(size / cropState.naturalW, size / cropState.naturalH);
+  cropState.zoom = 1;
+  centerCrop();
+  applyCropTransform();
+}
+
+function centerCrop() {
+  const size = cropWrap.clientWidth;
+  const scale = cropState.baseScale * cropState.zoom;
+  const w = cropState.naturalW * scale;
+  const h = cropState.naturalH * scale;
+  cropState.tx = (size - w) / 2;
+  cropState.ty = (size - h) / 2;
+}
+
+function clampCrop() {
+  const size = cropWrap.clientWidth;
+  const scale = cropState.baseScale * cropState.zoom;
+  const w = cropState.naturalW * scale;
+  const h = cropState.naturalH * scale;
+  cropState.tx = Math.min(0, Math.max(size - w, cropState.tx));
+  cropState.ty = Math.min(0, Math.max(size - h, cropState.ty));
+}
+
+function applyCropTransform() {
+  const scale = cropState.baseScale * cropState.zoom;
+  if (!isFinite(scale) || scale <= 0 || !cropState.naturalW || !cropState.naturalH) return;
+  cropImg.style.width = (cropState.naturalW * scale) + 'px';
+  cropImg.style.height = (cropState.naturalH * scale) + 'px';
+  cropImg.style.transform = `translate(${cropState.tx}px, ${cropState.ty}px)`;
+}
+
+zoomSlider.addEventListener('input', () => {
+  const prevScale = cropState.baseScale * cropState.zoom;
+  cropState.zoom = zoomSlider.value / 100;
+  const size = cropWrap.clientWidth;
+  // Recentre le zoom sur le milieu du cadre pour un rendu naturel
+  const newScale = cropState.baseScale * cropState.zoom;
+  const cx = (size / 2 - cropState.tx) / prevScale;
+  const cy = (size / 2 - cropState.ty) / prevScale;
+  cropState.tx = size / 2 - cx * newScale;
+  cropState.ty = size / 2 - cy * newScale;
+  clampCrop();
+  applyCropTransform();
+});
+
+function cropPointerDown(x, y) {
+  dragState = { startX: x, startY: y, tx0: cropState.tx, ty0: cropState.ty };
+}
+function cropPointerMove(x, y) {
+  if (!dragState) return;
+  cropState.tx = dragState.tx0 + (x - dragState.startX);
+  cropState.ty = dragState.ty0 + (y - dragState.startY);
+  clampCrop();
+  applyCropTransform();
+}
+function cropPointerUp() { dragState = null; }
+
+cropWrap.addEventListener('pointerdown', (e) => { cropWrap.setPointerCapture(e.pointerId); cropPointerDown(e.clientX, e.clientY); });
+cropWrap.addEventListener('pointermove', (e) => cropPointerMove(e.clientX, e.clientY));
+cropWrap.addEventListener('pointerup', cropPointerUp);
+cropWrap.addEventListener('pointercancel', cropPointerUp);
+
+function validateCrop() {
+  const size = cropWrap.clientWidth;
+  const OUT = 640;
+  const ratio = OUT / size;
+  const scale = cropState.baseScale * cropState.zoom;
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = OUT;
+  outCanvas.height = OUT;
+  const ctx = outCanvas.getContext('2d');
+  ctx.drawImage(
+    cropImg,
+    cropState.tx * ratio,
+    cropState.ty * ratio,
+    cropState.naturalW * scale * ratio,
+    cropState.naturalH * scale * ratio
+  );
+
+  const finalDataUrl = outCanvas.toDataURL('image/jpeg', 0.9);
+  cropStep.style.display = 'none';
+
+  preview.onload = () => {
+    photoWrap.style.display = 'block';
+    analyzeBtn.style.display = 'block';
+    sizeCanvas();
+  };
+  preview.src = finalDataUrl;
 }
 
 input.addEventListener('change', (e) => {
@@ -600,6 +828,9 @@ async function openCamera() {
 }
 
 function showCameraUnavailable() {
+  cropStep.style.display = 'none';
+  photoWrap.style.display = 'none';
+  analyzeBtn.style.display = 'none';
   resultZone.innerHTML = `
     <div class="card">
       <p style="margin:0;font-size:0.85rem;color:#8a5568;">
@@ -862,7 +1093,13 @@ function buildIssueCanvas(issueKey, level) {
   return c;
 }
 
+let lastDetected = null;
+let lastSkinAge = null;
+
 function renderResults(detected, skinAge, aiSource) {
+  lastDetected = detected;
+  lastSkinAge = skinAge;
+
   const declaredAge = profile.age ? profile.age : null;
   const ageNote = declaredAge
     ? `Basé sur ta tranche d'âge déclarée (${declaredAge}) et les caractéristiques observées sur la photo.`
@@ -922,7 +1159,79 @@ function renderResults(detected, skinAge, aiSource) {
       <h2><span class="step-num">4</span>Routine conseillée</h2>
       ${stepsHtml}
     </div>
+    <div class="card">
+      <h2><span class="step-num">5</span>Recevoir le bilan par email</h2>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:#6b7873;">
+        Le diagnostic est envoyé au patient — pas les produits conseillés, qui restent à voir avec le pharmacien.
+      </p>
+      <input type="email" id="patient-email" class="email-input" placeholder="email@exemple.fr">
+      <button class="send-email-btn" onclick="sendBilanEmail()">📧 Envoyer le bilan</button>
+      <p class="email-status" id="email-status"></p>
+      <div class="email-fallback" id="email-fallback">
+        <textarea class="email-body-text" id="email-body-text" readonly rows="8"></textarea>
+        <button class="copy-btn" onclick="copyEmailBody()">📋 Copier le texte</button>
+        <p class="copy-status" id="copy-status"></p>
+      </div>
+    </div>
   `;
+}
+
+function sendBilanEmail() {
+  const emailField = document.getElementById('patient-email');
+  const status = document.getElementById('email-status');
+  const emailVal = emailField.value.trim();
+
+  if (!emailVal || !emailVal.includes('@')) {
+    status.textContent = "Merci de renseigner une adresse email valide.";
+    status.style.color = '#c9542e';
+    return;
+  }
+  if (!lastDetected || !lastSkinAge) {
+    status.textContent = "Aucun bilan à envoyer pour l'instant.";
+    status.style.color = '#c9542e';
+    return;
+  }
+
+  const lines = lastDetected.map(d => `- ${ISSUES[d.key].label} : ${d.level}`).join('\n');
+  const body =
+`Bonjour,
+
+Voici votre bilan peau réalisé à la Pharmacie de l'Abbaye.
+
+Âge de peau estimé : ${lastSkinAge} ans
+
+Caractéristiques observées :
+${lines}
+
+Ces résultats sont indicatifs et ne remplacent pas un avis médical.
+Votre pharmacien reste à votre disposition pour vous accompagner dans le choix de vos soins.
+
+À bientôt,
+Pharmacie de l'Abbaye`;
+
+  const subject = "Votre bilan peau - Pharmacie de l'Abbaye";
+  const mailtoUrl = `mailto:${encodeURIComponent(emailVal)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  // Tentative d'ouverture de l'appli mail (fonctionnera une fois l'appli déployée en vrai ;
+  // bloqué dans l'aperçu sandboxé du chat, d'où le repli ci-dessous).
+  const link = document.createElement('a');
+  link.href = mailtoUrl;
+  link.click();
+
+  document.getElementById('email-fallback').style.display = 'block';
+  document.getElementById('email-body-text').value = `À : ${emailVal}\nObjet : ${subject}\n\n${body}`;
+  status.textContent = "Si ton appli mail ne s'est pas ouverte, utilise le texte ci-dessous.";
+  status.style.color = '#c65d78';
+}
+
+function copyEmailBody() {
+  const textarea = document.getElementById('email-body-text');
+  textarea.select();
+  navigator.clipboard.writeText(textarea.value).then(() => {
+    document.getElementById('copy-status').textContent = "✓ Copié !";
+  }).catch(() => {
+    document.getElementById('copy-status').textContent = "Sélectionne le texte manuellement et copie-le (Cmd/Ctrl+C).";
+  });
 }
 </script>
 </body>
