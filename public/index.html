@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerfectSkin - Pharmacie de l'Abbaye</title>
+<style>
+  :root {
+    --primary: #c65d78;
+    --primary-light: #fbeaf0;
+    --bg: #fdf7f8;
+    --text: #2f2226;
+    --card: #ffffff;
+    --border: #f3dfe4;
+    --marker: #d1495b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px;
+  }
+  .app { max-width: 480px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 20px; }
+  header h1 { font-size: 1.4rem; margin: 0 0 4px; color: var(--primary); letter-spacing: -0.3px; }
+  header p { font-size: 0.85rem; color: #6b7873; margin: 0; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1rem; margin: 0 0 10px; }
+  .card h2 .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    margin-right: 6px;
+  }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4a5652;
+    margin-bottom: 6px;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #fbfbfb;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .chip.selected {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+  .chip.small { font-size: 0.74rem; padding: 6px 10px; }
+
+  .quiz-toggle {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 0.76rem;
+    text-decoration: underline;
+    padding: 8px 0 0;
+    cursor: pointer;
+  }
+  .type-quiz {
+    display: none;
+    margin-top: 10px;
+    padding: 12px;
+    background: var(--primary-light);
+    border-radius: 10px;
+  }
+  .quiz-q { margin-bottom: 10px; }
+  .quiz-q:last-of-type { margin-bottom: 6px; }
+  .quiz-q p { margin: 0 0 6px; font-size: 0.78rem; font-weight: 600; color: #4a5652; }
+  .quiz-result { margin: 4px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--primary); min-height: 1.1em; }
+
+  #camera-input { display: none; }
+  .capture-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .capture-btn:disabled { opacity: 0.45; }
+  .capture-btn:active:not(:disabled) { opacity: 0.85; }
+
+  .gallery-link {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    padding: 8px 0 0;
+    cursor: pointer;
+  }
+
+  .camera-view {
+    position: relative;
+    display: none;
+    margin-top: 12px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+  }
+  #camera-video {
+    width: 100%;
+    display: block;
+    max-height: 380px;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+  .face-guide {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 58%;
+    height: 76%;
+    border: 3px solid rgba(255,255,255,0.9);
+    border-radius: 50% / 45%;
+    box-shadow: 0 0 0 1000px rgba(0,0,0,0.35);
+    pointer-events: none;
+  }
+  .camera-hint {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .camera-controls {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+  }
+  .camera-shutter {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid var(--primary);
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+  .camera-cancel {
+    background: rgba(0,0,0,0.5);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .photo-wrap {
+    position: relative;
+    display: none;
+    margin-top: 12px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  #preview {
+    width: 100%;
+    display: block;
+    max-height: 320px;
+    object-fit: cover;
+  }
+  #marker-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .analyze-btn {
+    display: none;
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    background: #8a3a4d;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .age-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .age-number {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+  }
+  .age-number span { font-size: 0.9rem; font-weight: 600; display: block; color: #6b7873; margin-top: 2px; }
+  .age-note { font-size: 0.82rem; color: #4a5652; line-height: 1.4; }
+
+  .defect-row { margin-bottom: 12px; }
+  .defect-row:last-child { margin-bottom: 0; }
+  .defect-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+  }
+  .defect-top .name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .defect-top .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .defect-top .level { font-size: 0.72rem; color: #6b7873; }
+
+  .issue-photo-card { margin-bottom: 18px; }
+  .issue-photo-card:last-child { margin-bottom: 0; }
+  .issue-photo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .issue-photo-header .name { font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; }
+  .issue-photo-header .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .issue-photo-header .level-chip {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+  .issue-canvas-wrap { border-radius: 10px; overflow: hidden; }
+  .issue-canvas-wrap img { width: 100%; display: block; }
+  .bar-bg { background: #eef0ef; border-radius: 6px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; }
+
+  .routine-section { margin-bottom: 16px; }
+  .routine-section:last-child { margin-bottom: 0; }
+  .routine-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 8px;
+  }
+  .routine-step {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .routine-section .routine-step:last-child { border-bottom: none; }
+  .step-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+    background: #b98a95;
+    border-radius: 5px;
+    padding: 2px 6px;
+    min-width: 40px;
+    text-align: center;
+    height: fit-content;
+  }
+  .step-body strong { display: block; font-size: 0.9rem; }
+  .step-body span { font-size: 0.8rem; color: #6b7873; }
+
+  .notice {
+    font-size: 0.72rem;
+    color: #8a9490;
+    margin-top: 14px;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .loading { text-align: center; font-size: 0.85rem; color: var(--primary); padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🌸 PerfectSkin</h1>
+    <p style="font-size:0.78rem;font-weight:600;color:#8a5568;margin:2px 0 6px;">Pharmacie de l'Abbaye</p>
+    <p>Démo — analyse photo & routine conseillée</p>
+  </header>
+
+  <div class="card">
+    <h2><span class="step-num">1</span>Votre profil</h2>
+    <div class="field">
+      <label>Type de peau</label>
+      <div class="chip-row" data-group="type">
+        <div class="chip" data-value="normale">Normale</div>
+        <div class="chip" data-value="mixte">Mixte</div>
+        <div class="chip" data-value="grasse">Grasse</div>
+        <div class="chip" data-value="seche">Sèche</div>
+        <div class="chip" data-value="sensible">Sensible</div>
+      </div>
+      <button class="quiz-toggle" id="quiz-toggle" onclick="toggleTypeQuiz()">Pas sûr(e) ? Réponds à 2 questions →</button>
+
+      <div class="type-quiz" id="type-quiz">
+        <div class="quiz-q">
+          <p>En fin de journée, ta peau est plutôt…</p>
+          <div class="chip-row" data-quiz="oil">
+            <div class="chip small" data-value="grasse">Brillante partout</div>
+            <div class="chip small" data-value="mixte">Brillante seulement front/nez/menton</div>
+            <div class="chip small" data-value="normale">Ni grasse ni sèche</div>
+            <div class="chip small" data-value="seche">Tiraillée, un peu rêche</div>
+          </div>
+        </div>
+        <div class="quiz-q">
+          <p>Rougit-elle facilement ou réagit-elle souvent aux produits ?</p>
+          <div class="chip-row" data-quiz="react">
+            <div class="chip small" data-value="oui">Oui, souvent</div>
+            <div class="chip small" data-value="non">Non, rarement</div>
+          </div>
+        </div>
+        <p class="quiz-result" id="quiz-result"></p>
+      </div>
+    </div>
+    <div class="field">
+      <label>Tranche d'âge</label>
+      <div class="chip-row" data-group="age">
+        <div class="chip" data-value="18-25">18-25</div>
+        <div class="chip" data-value="26-35">26-35</div>
+        <div class="chip" data-value="36-45">36-45</div>
+        <div class="chip" data-value="46-55">46-55</div>
+        <div class="chip" data-value="56+">56+</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Préoccupation principale</label>
+      <div class="chip-row" data-group="concern">
+        <div class="chip" data-value="hydratation">Hydratation</div>
+        <div class="chip" data-value="antiage">Anti-âge</div>
+        <div class="chip" data-value="imperfections">Imperfections</div>
+        <div class="chip" data-value="teint">Éclat du teint</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-num">2</span>Photo du visage</h2>
+    <input type="file" id="camera-input" accept="image/*" capture="user">
+    <button class="capture-btn" id="capture-btn" onclick="openCamera()">
+      📷 Prendre une photo
+    </button>
+    <button class="gallery-link" onclick="document.getElementById('camera-input').click()">
+      ou choisir une photo existante
+    </button>
+
+    <div class="camera-view" id="camera-view">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div class="face-guide"></div>
+      <div class="camera-hint">Cadre ton visage dans l'ovale</div>
+      <div class="camera-controls">
+        <button class="camera-cancel" id="camera-cancel" onclick="closeCamera()">Annuler</button>
+        <button class="camera-shutter" id="camera-shutter" onclick="shutterCapture()">📸</button>
+      </div>
+    </div>
+
+    <div class="photo-wrap" id="photo-wrap">
+      <img id="preview" alt="Aperçu photo">
+      <canvas id="marker-canvas"></canvas>
+    </div>
+    <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">
+      Analyser la peau
+    </button>
+  </div>
+
+  <div id="result-zone"></div>
+
+  <p class="notice">
+    Démo : les caractéristiques et l'âge de peau sont désormais estimés par une IA de vision à partir de ta photo.
+    Le placement précis des repères sur l'image reste approximatif (zones types du visage).
+    Les résultats ne constituent pas un diagnostic médical.
+  </p>
+</div>
+
+<script>
+// ---- Sélection du profil (chips) ----
+const profile = { type: null, age: null, concern: null };
+document.querySelectorAll('.chip-row[data-group]').forEach(row => {
+  const group = row.dataset.group;
+  row.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      row.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      profile[group] = chip.dataset.value;
+    });
+  });
+});
+
+// ---- Mini-quiz "type de peau" pour les personnes qui ne savent pas ----
+function toggleTypeQuiz() {
+  const quiz = document.getElementById('type-quiz');
+  const isOpen = quiz.style.display === 'block';
+  quiz.style.display = isOpen ? 'none' : 'block';
+  document.getElementById('quiz-toggle').textContent = isOpen
+    ? "Pas sûr(e) ? Réponds à 2 questions →"
+    : "Masquer le test";
+}
+
+const quizAnswers = { oil: null, react: null };
+document.querySelectorAll('.chip-row[data-quiz]').forEach(row => {
+  const quizKey = row.dataset.quiz;
+  row.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      row.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      quizAnswers[quizKey] = chip.dataset.value;
+      maybeResolveSkinType();
+    });
+  });
+});
+
+function maybeResolveSkinType() {
+  if (!quizAnswers.oil || !quizAnswers.react) return;
+
+  // Les rougeurs/réactions fréquentes priment sur le reste
+  const resolvedType = quizAnswers.react === 'oui' ? 'sensible' : quizAnswers.oil;
+
+  const typeRow = document.querySelector('.chip-row[data-group="type"]');
+  typeRow.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('selected', c.dataset.value === resolvedType);
+  });
+  profile.type = resolvedType;
+
+  const labels = { normale: 'Normale', mixte: 'Mixte', grasse: 'Grasse', seche: 'Sèche', sensible: 'Sensible' };
+  document.getElementById('quiz-result').textContent = `→ Type de peau estimé : ${labels[resolvedType]}. Tu peux corriger ci-dessus si besoin.`;
+}
+
+// ---- Problématiques détectables ----
+const ISSUES = {
+  hydratation:   { label: "Déshydratation",        color: "#3d8bd6" },
+  pores:         { label: "Pores dilatés",         color: "#c98a2e" },
+  rides:         { label: "Rides & ridules",       color: "#8a5fc9" },
+  cernes:        { label: "Cernes",                color: "#4a6fa8" },
+  imperfections: { label: "Imperfections / zone T", color: "#c9542e" },
+  sensibilite:   { label: "Rougeurs / sensibilité", color: "#d6483d" },
+  teint:         { label: "Teint terne",           color: "#a68b3d" }
+};
+
+// ---- Étapes de routine (ordre d'application) ----
+const STEP_ORDER = ['nettoyage', 'serum', 'jour', 'nuit', 'spf'];
+const STEP_META = {
+  nettoyage: { label: "Nettoyage",         icon: "🧼", badge: "1" },
+  serum:     { label: "Sérum",             icon: "💧", badge: "2" },
+  jour:      { label: "Crème de jour",     icon: "☀️", badge: "3" },
+  nuit:      { label: "Crème de nuit",     icon: "🌙", badge: "4" },
+  spf:       { label: "Protection solaire", icon: "🛡️", badge: "5" }
+};
+
+// ---- Catalogue produits réels (Erborian + La Roche-Posay) ----
+// besoins: [] + defaut:true => proposé systématiquement. besoins:[...] => proposé si la problématique est détectée.
+const PRODUCTS = [
+  { nom: "Gel nettoyant - Erborian",                    etape: "nettoyage", desc: "Nettoyage quotidien doux", besoins: [], defaut: true },
+  { nom: "Gel nettoyant Effaclar - La Roche-Posay",     etape: "nettoyage", desc: "Nettoie et purifie, peaux à imperfections", besoins: ["pores", "imperfections"] },
+  { nom: "Huile démaquillante - Erborian",              etape: "nettoyage", desc: "Démaquille en douceur, tous types de peau", besoins: [] },
+  { nom: "Baume démaquillant - Erborian",                etape: "nettoyage", desc: "Démaquillant apaisant, peaux sensibles", besoins: ["sensibilite"] },
+
+  { nom: "Sérum Hyalu B5 - La Roche-Posay",             etape: "serum", desc: "Acide hyaluronique, repulpant et réparateur", besoins: ["hydratation", "rides"] },
+  { nom: "Soin ciblé Effaclar - La Roche-Posay",        etape: "serum", desc: "Traite localement les imperfections", besoins: ["imperfections", "pores"] },
+  { nom: "Ginseng Microshot - Erborian",                 etape: "serum", desc: "Concentré coup d'éclat au ginseng", besoins: ["teint"] },
+
+  { nom: "Glow Moisturizer - Erborian",                  etape: "jour", desc: "Hydrate et illumine le teint", besoins: [], defaut: true },
+  { nom: "Crème matifiante Effaclar - La Roche-Posay",  etape: "jour", desc: "Régule la brillance, resserre les pores", besoins: ["pores", "imperfections"] },
+  { nom: "Matte Moisturizer - Erborian",                 etape: "jour", desc: "Hydrate sans briller, peaux mixtes à grasses", besoins: ["pores"] },
+  { nom: "Crème Red Pepper - Erborian",                  etape: "jour", desc: "Effet fermeté, repulpant et éclat du teint", besoins: ["rides", "teint"] },
+
+  { nom: "Skin Therapy - Erborian",                      etape: "nuit", desc: "Soin régénérant de nuit", besoins: [], defaut: true },
+  { nom: "Contour des yeux Skin Therapy - Erborian",     etape: "nuit", desc: "Décongestionne et illumine le regard", besoins: ["cernes"] },
+  { nom: "Crème Ginseng - Erborian",                     etape: "nuit", desc: "Nourrit et apaise pendant la nuit", besoins: ["hydratation", "sensibilite"] },
+
+  { nom: "Fluide solaire - La Roche-Posay",              etape: "spf", desc: "Protection solaire quotidienne, tous types de peau", besoins: [], defaut: true },
+  { nom: "Fluide solaire Oil Control - La Roche-Posay",  etape: "spf", desc: "Protection solaire matifiante, peaux mixtes à grasses", besoins: ["pores", "imperfections"] },
+  { nom: "Crème anti-âge SPF50 - La Roche-Posay",        etape: "spf", desc: "Protection solaire + soin anti-âge", besoins: ["rides"] }
+];
+
+function buildRoutine(detectedKeys) {
+  const routine = {};
+  STEP_ORDER.forEach(s => routine[s] = []);
+  PRODUCTS.forEach(p => {
+    const matches = p.defaut || p.besoins.some(b => detectedKeys.includes(b));
+    if (matches && routine[p.etape].length < 3 && !routine[p.etape].find(x => x.nom === p.nom)) {
+      routine[p.etape].push(p);
+    }
+  });
+  return routine;
+}
+
+const input = document.getElementById('camera-input');
+const preview = document.getElementById('preview');
+const photoWrap = document.getElementById('photo-wrap');
+const canvas = document.getElementById('marker-canvas');
+const analyzeBtn = document.getElementById('analyze-btn');
+const resultZone = document.getElementById('result-zone');
+const cameraView = document.getElementById('camera-view');
+const cameraVideo = document.getElementById('camera-video');
+let cameraStream = null;
+
+function loadPhotoFromDataUrl(dataUrl) {
+  resultZone.innerHTML = '';
+  clearCanvas();
+  analyzeBtn.style.display = 'none';
+  photoWrap.style.display = 'none';
+
+  preview.onload = () => {
+    photoWrap.style.display = 'block';
+    analyzeBtn.style.display = 'block';
+    sizeCanvas();
+  };
+  preview.onerror = () => {
+    resultZone.innerHTML = `
+      <div class="card">
+        <p style="margin:0;font-size:0.85rem;color:#c9542e;">
+          ⚠️ Impossible d'afficher cette photo (format non supporté, probablement HEIC).
+          Sur iPhone : Réglages → Appareil photo → Formats → choisir "Le plus compatible",
+          ou envoie une capture d'écran de la photo à la place.
+        </p>
+      </div>`;
+  };
+  preview.src = dataUrl;
+}
+
+input.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => loadPhotoFromDataUrl(evt.target.result);
+  reader.onerror = () => {
+    resultZone.innerHTML = '<div class="loading">Erreur de lecture du fichier. Réessaie avec une autre image.</div>';
+  };
+  reader.readAsDataURL(file);
+});
+
+// ---- Caméra en direct avec guide de positionnement du visage ----
+async function openCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCameraUnavailable();
+    return;
+  }
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    cameraVideo.srcObject = cameraStream;
+    cameraView.style.display = 'block';
+    photoWrap.style.display = 'none';
+    analyzeBtn.style.display = 'none';
+    resultZone.innerHTML = '';
+  } catch (err) {
+    console.warn('Caméra live indisponible :', err);
+    showCameraUnavailable();
+  }
+}
+
+function showCameraUnavailable() {
+  resultZone.innerHTML = `
+    <div class="card">
+      <p style="margin:0;font-size:0.85rem;color:#8a5568;">
+        📵 La caméra en direct n'est pas accessible dans cet aperçu (restriction de sécurité de l'environnement de démo).
+        Utilise le bouton <strong>« ou choisir une photo existante »</strong> juste au-dessus pour tester avec une photo.
+        Une fois l'appli hébergée sur un vrai site, la caméra en direct fonctionnera normalement.
+      </p>
+    </div>`;
+}
+
+function closeCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  cameraView.style.display = 'none';
+}
+
+function shutterCapture() {
+  const vw = cameraVideo.videoWidth;
+  const vh = cameraVideo.videoHeight;
+  if (!vw || !vh) return;
+
+  const shotCanvas = document.createElement('canvas');
+  shotCanvas.width = vw;
+  shotCanvas.height = vh;
+  const sctx = shotCanvas.getContext('2d');
+  sctx.drawImage(cameraVideo, 0, 0, vw, vh);
+
+  loadPhotoFromDataUrl(shotCanvas.toDataURL('image/jpeg', 0.9));
+  closeCamera();
+}
+
+window.addEventListener('resize', sizeCanvas);
+
+function sizeCanvas() {
+  canvas.width = preview.clientWidth;
+  canvas.height = preview.clientHeight;
+}
+
+function clearCanvas() {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ---- Générateur pseudo-aléatoire stable (seedé par la photo + le profil) ----
+// Pour que "Analyser" donne le même résultat tant que la photo et le profil ne changent pas,
+// au lieu d'un résultat différent à chaque clic.
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 37) { // échantillonnage pour rester rapide sur une longue data:URL
+    hash = (Math.imul(hash, 31) + str.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
+function mulberry32(seed) {
+  return function () {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let rng = Math.random; // remplacé par une version seedée juste avant chaque analyse
+
+function dataUrlToBase64(dataUrl) {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+  if (!match) return null;
+  return { mediaType: match[1], base64: match[2] };
+}
+
+async function analyzeWithAI(base64, mediaType) {
+  const response = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: base64, mediaType, profile })
+  });
+
+  if (!response.ok) throw new Error("Réponse API invalide");
+  const parsed = await response.json();
+  if (parsed.error) throw new Error(parsed.error);
+
+  const validKeys = Object.keys(ISSUES);
+  const issues = (parsed.issues || [])
+    .filter(i => validKeys.includes(i.key))
+    .map(i => ({ key: i.key, level: ['Léger', 'Modéré', 'Marqué'].includes(i.level) ? i.level : 'Modéré' }));
+
+  if (issues.length === 0) throw new Error("Aucune caractéristique valide retournée");
+
+  return { issues, skinAge: Number.isFinite(parsed.skin_age_estimate) ? Math.round(parsed.skin_age_estimate) : null };
+}
+
+async function runAnalysis() {
+  resultZone.innerHTML = '<div class="loading">Analyse de la photo en cours (IA)…</div>';
+  clearCanvas();
+
+  const seedStr = preview.src + '|' + profile.type + '|' + profile.age + '|' + profile.concern;
+  rng = mulberry32(hashCode(seedStr));
+
+  const parsedImg = dataUrlToBase64(preview.src);
+  let detected, skinAge, aiSource = true;
+
+  try {
+    if (!parsedImg) throw new Error("Image non lisible");
+    const result = await analyzeWithAI(parsedImg.base64, parsedImg.mediaType);
+    detected = result.issues;
+    skinAge = result.skinAge || simulateSkinAge();
+  } catch (err) {
+    console.error("Analyse IA indisponible, repli sur la simulation :", err);
+    aiSource = false;
+    detected = simulateSkinAnalysis();
+    skinAge = simulateSkinAge();
+  }
+
+  renderResults(detected, skinAge, aiSource);
+}
+
+function simulateSkinAnalysis() {
+  const keys = Object.keys(ISSUES);
+  const shuffled = keys.sort(() => 0.5 - rng());
+  const count = 2 + Math.floor(rng() * 2);
+  return shuffled.slice(0, count).map(k => ({
+    key: k,
+    level: ['Léger', 'Modéré', 'Marqué'][Math.floor(rng() * 3)]
+  }));
+}
+
+function simulateSkinAge() {
+  // Estimation simulée à partir de la tranche d'âge déclarée (+/- quelques années)
+  const ranges = { '18-25': 21, '26-35': 30, '36-45': 40, '46-55': 50, '56+': 58 };
+  const base = ranges[profile.age] || 33;
+  const delta = Math.floor(rng() * 7) - 2; // -2 à +4
+  return base + delta;
+}
+
+const ZONE_HINTS = {
+  hydratation:   [{x:0.30,y:0.55},{x:0.68,y:0.58}],
+  pores:         [{x:0.50,y:0.60},{x:0.42,y:0.66},{x:0.58,y:0.66},{x:0.50,y:0.45},{x:0.44,y:0.52},{x:0.56,y:0.52}],
+  rides:         [{x:0.35,y:0.30},{x:0.62,y:0.30},{x:0.50,y:0.78}],
+  cernes:        [{x:0.35,y:0.42},{x:0.63,y:0.42}],
+  imperfections: [{x:0.50,y:0.58},{x:0.48,y:0.35},{x:0.40,y:0.60},{x:0.60,y:0.55},{x:0.45,y:0.70}],
+  sensibilite:   [{x:0.28,y:0.50},{x:0.70,y:0.50}],
+  teint:         [{x:0.50,y:0.45}]
+};
+
+function hexToRgb(hex) {
+  const m = hex.replace('#', '').match(/.{2}/g);
+  return m.map(h => parseInt(h, 16));
+}
+
+// Dessine l'image dans le canvas en recadrant comme le ferait CSS object-fit:cover,
+// pour éviter toute déformation (au lieu d'étirer l'image aux dimensions cible).
+function drawImageCover(ctx, img, dw, dh) {
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const targetRatio = dw / dh;
+  const sourceRatio = iw / ih;
+  let sx, sy, sw, sh;
+  if (sourceRatio > targetRatio) {
+    sh = ih;
+    sw = ih * targetRatio;
+    sx = (iw - sw) / 2;
+    sy = 0;
+  } else {
+    sw = iw;
+    sh = iw / targetRatio;
+    sx = 0;
+    sy = (ih - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+}
+
+function countForLevel(level) {
+  return { 'Léger': 8, 'Modéré': 16, 'Marqué': 26 }[level] || 12;
+}
+
+// Points épars (pores dilatés, imperfections) — la densité reflète la sévérité
+function drawScatterDots(ctx, spots, level, color, w, h) {
+  const count = countForLevel(level);
+  for (let i = 0; i < count; i++) {
+    const spot = spots[Math.floor(rng() * spots.length)];
+    const x = (spot.x + (rng() - 0.5) * 0.16) * w;
+    const y = (spot.y + (rng() - 0.5) * 0.16) * h;
+    ctx.beginPath();
+    ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Petits traits clairs (rides & ridules) — le nombre reflète la sévérité
+function drawWrinkleLines(ctx, spots, level, w, h) {
+  const count = { 'Léger': 2, 'Modéré': 4, 'Marqué': 6 }[level] || 3;
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = 1.6;
+  for (let i = 0; i < count; i++) {
+    const spot = spots[Math.floor(rng() * spots.length)];
+    const cx = spot.x * w, cy = spot.y * h + (rng() - 0.5) * 16;
+    const len = 12 + rng() * 10;
+    ctx.beginPath();
+    ctx.moveTo(cx - len / 2, cy);
+    ctx.lineTo(cx + len / 2, cy + (rng() - 0.5) * 6);
+    ctx.stroke();
+  }
+}
+
+// Halo sous les yeux (cernes) — l'opacité reflète la sévérité
+function drawUnderEyeArcs(ctx, spots, level, w, h) {
+  const opacity = { 'Léger': 0.25, 'Modéré': 0.4, 'Marqué': 0.55 }[level] || 0.3;
+  ctx.strokeStyle = `rgba(74,111,168,${opacity})`;
+  ctx.lineWidth = 6;
+  spots.forEach(spot => {
+    const cx = spot.x * w, cy = spot.y * h;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 6, 16, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+  });
+}
+
+// Taches douces dégradées (hydratation, sensibilité, teint) — taille/nombre reflète la sévérité
+function drawSoftPatches(ctx, spots, level, color, w, h) {
+  const [r, g, b] = hexToRgb(color);
+  const opacity = { 'Léger': 0.18, 'Modéré': 0.3, 'Marqué': 0.42 }[level] || 0.22;
+  const count = { 'Léger': 1, 'Modéré': 2, 'Marqué': 3 }[level] || 2;
+  for (let i = 0; i < count; i++) {
+    const spot = spots[Math.floor(rng() * spots.length)];
+    const cx = (spot.x + (rng() - 0.5) * 0.1) * w;
+    const cy = (spot.y + (rng() - 0.5) * 0.1) * h;
+    const radius = 26 + rng() * 14;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function buildIssueCanvas(issueKey, level) {
+  const w = canvas.width, h = canvas.height;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  drawImageCover(ctx, preview, w, h);
+
+  const spots = ZONE_HINTS[issueKey] || [{ x: 0.5, y: 0.5 }];
+  const color = ISSUES[issueKey].color;
+
+  if (issueKey === 'rides') {
+    drawWrinkleLines(ctx, spots, level, w, h);
+  } else if (issueKey === 'cernes') {
+    drawUnderEyeArcs(ctx, spots, level, w, h);
+  } else if (issueKey === 'pores' || issueKey === 'imperfections') {
+    drawScatterDots(ctx, spots, level, color, w, h);
+  } else {
+    drawSoftPatches(ctx, spots, level, color, w, h);
+  }
+  return c;
+}
+
+function renderResults(detected, skinAge, aiSource) {
+  const declaredAge = profile.age ? profile.age : null;
+  const ageNote = declaredAge
+    ? `Basé sur ta tranche d'âge déclarée (${declaredAge}) et les caractéristiques observées sur la photo.`
+    : `Estimation basée uniquement sur les caractéristiques observées sur la photo.`;
+  const sourceNote = aiSource
+    ? `<p style="margin:8px 0 0;font-size:0.72rem;color:#c65d78;">✓ Analyse réalisée par IA de vision sur la photo fournie.</p>`
+    : `<p style="margin:8px 0 0;font-size:0.72rem;color:#c9542e;">⚠️ Analyse IA indisponible pour cette exécution — résultat de secours simulé.</p>`;
+
+  let issuePhotosHtml = detected.map(d => {
+    const info = ISSUES[d.key];
+    const issueCanvas = buildIssueCanvas(d.key, d.level);
+    const imgSrc = issueCanvas.toDataURL('image/jpeg', 0.88);
+    return `
+      <div class="issue-photo-card">
+        <div class="issue-photo-header">
+          <span class="name"><span class="dot" style="background:${info.color}"></span>${info.label}</span>
+          <span class="level-chip">${d.level}</span>
+        </div>
+        <div class="issue-canvas-wrap"><img src="${imgSrc}" alt="${info.label}"></div>
+      </div>
+    `;
+  }).join('');
+
+  const detectedKeys = detected.map(d => d.key);
+  const routine = buildRoutine(detectedKeys);
+
+  let stepsHtml = STEP_ORDER.filter(s => routine[s].length > 0).map(s => {
+    const meta = STEP_META[s];
+    const productsHtml = routine[s].map(p => `
+      <div class="routine-step">
+        <div class="step-badge">${routine[s].length > 1 ? 'Option' : 'Choix'}</div>
+        <div class="step-body">
+          <strong>${p.nom}</strong>
+          <span>${p.desc}</span>
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div class="routine-section">
+        <div class="routine-section-title">${meta.icon} ${meta.label}</div>
+        ${productsHtml}
+      </div>
+    `;
+  }).join('');
+
+  resultZone.innerHTML = `
+    <div class="card age-card">
+      <div class="age-number">${skinAge}<span>ans</span></div>
+      <div class="age-note"><strong>Âge de peau estimé.</strong> ${ageNote}</div>
+    </div>
+    <div class="card">
+      <h2><span class="step-num">3</span>Caractéristiques observées</h2>
+      ${issuePhotosHtml}
+      ${sourceNote}
+    </div>
+    <div class="card">
+      <h2><span class="step-num">4</span>Routine conseillée</h2>
+      ${stepsHtml}
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
