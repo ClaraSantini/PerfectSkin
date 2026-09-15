@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PerfectSkin - Pharmacie de l'Abbaye</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   :root {
     --primary: #c65d78;
@@ -512,10 +513,13 @@
       <p class="crop-hint">Déplace et zoome pour bien centrer le visage dans l'ovale</p>
       <div class="zoom-row">
         <span>🔍</span>
-        <input type="range" id="zoom-slider" min="100" max="250" value="100">
+        <input type="range" id="zoom-slider" min="100" max="280" value="170">
       </div>
       <button class="validate-crop-btn" onclick="validateCrop()">✓ Valider le cadrage</button>
     </div>
+    <p class="crop-hint" style="margin-top:-6px;color:#8a3a4d;font-weight:600;">
+      Le visage doit remplir l'ovale avant de valider — sinon glisse le curseur vers la droite.
+    </p>
 
     <div class="photo-wrap" id="photo-wrap">
       <img id="preview" alt="Aperçu photo">
@@ -600,40 +604,118 @@ const ISSUES = {
 };
 
 // ---- Étapes de routine (ordre d'application) ----
-const STEP_ORDER = ['nettoyage', 'serum', 'jour', 'nuit', 'spf'];
+const STEP_ORDER = ['nettoyage', 'serum', 'jour', 'nuit', 'spf', 'complements'];
 const STEP_META = {
   nettoyage: { label: "Nettoyage",         icon: "🧼", badge: "1" },
   serum:     { label: "Sérum",             icon: "💧", badge: "2" },
   jour:      { label: "Crème de jour",     icon: "☀️", badge: "3" },
   nuit:      { label: "Crème de nuit",     icon: "🌙", badge: "4" },
-  spf:       { label: "Protection solaire", icon: "🛡️", badge: "5" }
+  spf:       { label: "Protection solaire", icon: "🛡️", badge: "5" },
+  complements: { label: "Compléments alimentaires (en plus des soins)", icon: "💊", badge: "+" }
 };
 
-// ---- Catalogue produits réels (Erborian + La Roche-Posay) ----
+// ---- Catalogue produits réels (Erborian + La Roche-Posay + NHCO) ----
 // besoins: [] + defaut:true => proposé systématiquement. besoins:[...] => proposé si la problématique est détectée.
-const PRODUCTS = [
-  { nom: "Gel nettoyant - Erborian",                    etape: "nettoyage", desc: "Nettoyage quotidien doux", besoins: [], defaut: true },
+const FALLBACK_PRODUCTS = [
+  { nom: "Centella Cleansing Gel - Erborian",            etape: "nettoyage", desc: "Gel nettoyant doux quotidien", besoins: [], defaut: true },
+  { nom: "Centella Cleansing Oil - Erborian",            etape: "nettoyage", desc: "Huile démaquillante apaisante — en double nettoyage avant le gel", besoins: [] },
+  { nom: "Centella Cleansing Balm - Erborian",           etape: "nettoyage", desc: "Baume démaquillant fondant apaisant, peaux sensibles — en double nettoyage avant le gel", besoins: ["sensibilite"] },
   { nom: "Gel nettoyant Effaclar - La Roche-Posay",     etape: "nettoyage", desc: "Nettoie et purifie, peaux à imperfections", besoins: ["pores", "imperfections"] },
-  { nom: "Huile démaquillante - Erborian",              etape: "nettoyage", desc: "Démaquille en douceur, tous types de peau", besoins: [] },
-  { nom: "Baume démaquillant - Erborian",                etape: "nettoyage", desc: "Démaquillant apaisant, peaux sensibles", besoins: ["sensibilite"] },
+  { nom: "Effaclar Pain Dermatologique - La Roche-Posay", etape: "nettoyage", desc: "Nettoie, purifie et matifie, niacinamide + vitamine E + acide lactique, peaux acnéiques", besoins: ["imperfections", "pores"] },
+  { nom: "Effaclar Gel Moussant Purifiant - La Roche-Posay", etape: "nettoyage", desc: "Équilibre le pH de la peau, peaux grasses à tendance acnéique", besoins: ["pores", "imperfections"] },
+  { nom: "Serozinc - La Roche-Posay",                    etape: "nettoyage", desc: "Spray soluté de sulfate de zinc, assainissant et apaisant (après nettoyage)", besoins: ["imperfections", "pores"] },
+  { nom: "Gel Moussant - CeraVe",                        etape: "nettoyage", desc: "Nettoie et élimine l'excès de sébum, peaux normales à grasses, 3 céramides + niacinamide + acide hyaluronique", besoins: ["pores"] },
+  { nom: "Eau Micellaire - CeraVe",                      etape: "nettoyage", desc: "Nettoie, démaquille et hydrate en douceur, 3 céramides + niacinamide, formule ultra douce", besoins: ["sensibilite"] },
+  { nom: "Blemish Control Cleanser - CeraVe",            etape: "nettoyage", desc: "Gel moussant anti-imperfections, peaux acnéiques, acide salicylique + argile blanche + niacinamide", besoins: ["imperfections", "pores"] },
 
   { nom: "Sérum Hyalu B5 - La Roche-Posay",             etape: "serum", desc: "Acide hyaluronique, repulpant et réparateur", besoins: ["hydratation", "rides"] },
+  { nom: "Hyalu B5 Sérum Concentré - La Roche-Posay",   etape: "serum", desc: "Concentré anti-rides réparateur repulpant, acide hyaluronique pur + vitamine B5 + madécassoside", besoins: ["rides", "teint"] },
+  { nom: "Effaclar Sérum Ultra Concentré - La Roche-Posay", etape: "serum", desc: "Peeling quotidien anti-imperfections et anti-marques, acide salicylique + glycolique + LHA + niacinamide", besoins: ["imperfections", "pores"] },
+  { nom: "Effaclar A.I. - La Roche-Posay",              etape: "serum", desc: "Correcteur ciblé des imperfections locales, peaux grasses acnéiques", besoins: ["imperfections"] },
+  { nom: "Toleriane Rosaliac AR Concentré - La Roche-Posay", etape: "serum", desc: "Soin anti-rougeurs correcteur intensif, teinte verte neutralisante, peaux sujettes à la rosacée", besoins: ["sensibilite"] },
+  { nom: "Pure Vitamin C12 Sérum - La Roche-Posay",     etape: "serum", desc: "Concentré rénovateur éclat anti-rides anti-oxydant, vitamine C pure, convient aux peaux sensibles", besoins: ["rides", "teint"] },
   { nom: "Soin ciblé Effaclar - La Roche-Posay",        etape: "serum", desc: "Traite localement les imperfections", besoins: ["imperfections", "pores"] },
-  { nom: "Ginseng Microshot - Erborian",                 etape: "serum", desc: "Concentré coup d'éclat au ginseng", besoins: ["teint"] },
+  { nom: "Centella SOS Patch - Erborian",                etape: "serum", desc: "Gel effet patch anti-imperfections, 10% PHA, action ciblée 24h (jour et nuit)", besoins: ["imperfections"] },
+  { nom: "Ginseng Micro Shot Starter 0.1% - Erborian",   etape: "serum", desc: "Sérum micro-infusion retexturant, pores + texture + bounce (dosage initiation)", besoins: ["pores"] },
+  { nom: "Ginseng Micro Shot Advanced 0.3% - Erborian",  etape: "serum", desc: "Sérum intensif micro-infusion retexturant, pores + rides/ridules + bounce (dosage avancé)", besoins: ["pores", "rides"] },
+  { nom: "Ginseng Super Serum - Erborian",               etape: "serum", desc: "80% extraits de ginseng, effet lissant et tenseur", besoins: ["rides"] },
+  { nom: "Red Pepper Super Serum - Erborian",            etape: "serum", desc: "80% extraits de piment, booster d'éclat, prébiotiques pour barrière cutanée et hydratation", besoins: ["teint", "hydratation"] },
+  { nom: "Water Serum - Erborian",                       etape: "serum", desc: "Hydratation intense 24h, 4 acides hyaluroniques", besoins: ["hydratation"] },
+  { nom: "Centella Red Serum - Erborian",                etape: "serum", desc: "Concentré apaisant immédiat, rougeurs, Centella Asiatica 2% + Ectoïne", besoins: ["sensibilite"] },
+  { nom: "Sérum Rétinol Anti-Marques - CeraVe",          etape: "serum", desc: "Réduit les marques post-imperfections, resserre les pores, rétinol encapsulé + niacinamide", besoins: ["imperfections", "pores"] },
 
-  { nom: "Glow Moisturizer - Erborian",                  etape: "jour", desc: "Hydrate et illumine le teint", besoins: [], defaut: true },
+  { nom: "Glow Moisturizer - Erborian",                  etape: "jour", desc: "Crème hydratation 24h, effet glass skin immédiat, acide hyaluronique + niacinamide 5%", besoins: [], defaut: true },
+  { nom: "Centella Crème - Erborian",                    etape: "jour", desc: "Crème hydratante apaisante, Centella Asiatica 2% + acide hyaluronique (peaux rougeurs/réactives)", besoins: ["sensibilite", "hydratation"] },
+  { nom: "Centella Barrier Cream - Erborian",            etape: "jour", desc: "Baume cica-réparateur express, Centella Asiatica 2% + céramides (peaux rougeurs/réactives)", besoins: ["sensibilite"] },
   { nom: "Crème matifiante Effaclar - La Roche-Posay",  etape: "jour", desc: "Régule la brillance, resserre les pores", besoins: ["pores", "imperfections"] },
-  { nom: "Matte Moisturizer - Erborian",                 etape: "jour", desc: "Hydrate sans briller, peaux mixtes à grasses", besoins: ["pores"] },
-  { nom: "Crème Red Pepper - Erborian",                  etape: "jour", desc: "Effet fermeté, repulpant et éclat du teint", besoins: ["rides", "teint"] },
+  { nom: "Matte Moisturizer - Erborian",                 etape: "jour", desc: "Gel-crème hydratation 24h, matifie instantanément, acide hyaluronique + zinc 1%", besoins: ["pores"] },
+  { nom: "Crème Red Pepper - Erborian (bientôt disponible)", etape: "jour", desc: "80% extraits de piment, énergise et booste l'éclat, prébiotiques pour barrière cutanée et hydratation", besoins: ["teint", "hydratation"] },
+  { nom: "Ginseng Power - Erborian",                     etape: "jour", desc: "Crème lissante aux peptides, ridules & rides", besoins: ["rides"] },
+  { nom: "Ginseng Power Eye - Erborian",                 etape: "jour", desc: "Contour des yeux lissant aux peptides, effet défroissant sur rides & ridules", besoins: ["rides"] },
+  { nom: "Skin Hero au Ginseng - Erborian",              etape: "jour", desc: "Perfecteur de peau nue, universel, sans silicone : atténue les imperfections visibles (aussi utilisable en base de teint)", besoins: ["imperfections", "pores"] },
+  { nom: "CC Red Correct - Erborian",                    etape: "jour", desc: "Soin correcteur teinté anti-rougeurs, apaisant, SPF30, Centella Asiatica 2% + Panthénol", besoins: ["sensibilite"] },
+  { nom: "Nutritic Intense Riche - La Roche-Posay",     etape: "jour", desc: "Crème nutri-reconstituante intense, apaise/assouplit/réconforte, peaux sensibles sèches à très sèches", besoins: ["sensibilite", "hydratation"] },
+  { nom: "Hyalu B5 Crème Suractivée - La Roche-Posay",  etape: "jour", desc: "Raffermissante, lissante, repulpante, acide hyaluronique + vitamine B5 + ectoïne, testée peaux sensibles", besoins: ["rides", "sensibilite"] },
+  { nom: "Effaclar Mat+ - La Roche-Posay",              etape: "jour", desc: "Hydratant sébo-régulateur anti-brillance anti-pores dilatés, peaux grasses acnéiques", besoins: ["pores"] },
+  { nom: "Toleriane Sensitive Riche - La Roche-Posay",  etape: "jour", desc: "Soin hydratant calmant protecteur, peaux sensibles, sans parfum ni alcool", besoins: ["sensibilite"] },
+  { nom: "Toleriane Dermallergo Yeux - La Roche-Posay", etape: "jour", desc: "Contour des yeux hydratant apaisant réparateur, anti-démangeaisons/rougeurs, peaux allergiques ou sensibles", besoins: ["sensibilite", "cernes"] },
+  { nom: "Toleriane Dermallergo Fluide - La Roche-Posay", etape: "jour", desc: "Fluide hydratant apaisant réparateur, soulage immédiatement, anti-rougeurs, peaux allergiques/sensibles", besoins: ["sensibilite"] },
+  { nom: "Hydraphase HA Riche - La Roche-Posay",        etape: "jour", desc: "72h d'hydratation intense, peau repulpée + éclat, peaux sèches déshydratées, teint terne", besoins: ["hydratation", "teint"] },
+  { nom: "Gel-Crème Hydratant Oil Control - CeraVe",     etape: "jour", desc: "Rééquilibre les peaux grasses, technologie anti-brillance, 3 céramides + niacinamide + acide hyaluronique", besoins: ["pores"] },
 
-  { nom: "Skin Therapy - Erborian",                      etape: "nuit", desc: "Soin régénérant de nuit", besoins: [], defaut: true },
-  { nom: "Contour des yeux Skin Therapy - Erborian",     etape: "nuit", desc: "Décongestionne et illumine le regard", besoins: ["cernes"] },
+  { nom: "Skin Therapy - Sérum Nuit Multi-Perfecteur - Erborian", etape: "nuit", desc: "Texture légère (peaux mixtes à grasses) : teint frais, anti-fatigue, rides & imperfections", besoins: ["teint", "rides", "imperfections"] },
+  { nom: "Skin Therapy - Sérum Nuit Classique - Erborian (bientôt disponible)", etape: "nuit", desc: "Texture riche (peaux normales à sensibles) : teint frais, anti-fatigue, rides", besoins: ["teint", "rides", "sensibilite"] },
+  { nom: "Skin Therapy Eye - Erborian",           etape: "nuit", desc: "Crème yeux multi-perfectrice, réduit les cernes (résultats dès la 1re nuit)", besoins: ["cernes"] },
   { nom: "Crème Ginseng - Erborian",                     etape: "nuit", desc: "Nourrit et apaise pendant la nuit", besoins: ["hydratation", "sensibilite"] },
+  { nom: "Crème Hydratante Visage PM - CeraVe",          etape: "nuit", desc: "Nourrit, hydrate, restaure la barrière cutanée, peaux normales à sèches, 3 céramides + niacinamide + acide hyaluronique", besoins: ["hydratation", "sensibilite"] },
 
   { nom: "Fluide solaire - La Roche-Posay",              etape: "spf", desc: "Protection solaire quotidienne, tous types de peau", besoins: [], defaut: true },
   { nom: "Fluide solaire Oil Control - La Roche-Posay",  etape: "spf", desc: "Protection solaire matifiante, peaux mixtes à grasses", besoins: ["pores", "imperfections"] },
-  { nom: "Crème anti-âge SPF50 - La Roche-Posay",        etape: "spf", desc: "Protection solaire + soin anti-âge", besoins: ["rides"] }
+  { nom: "Hydraphase HA UV SPF25 Légère - La Roche-Posay", etape: "spf", desc: "72h hydratation intense, peaux déshydratées, teint fatigué", besoins: ["hydratation", "teint"] },
+  { nom: "Anthelios Age Correct SPF50 - La Roche-Posay", etape: "spf", desc: "Photocorrection quotidienne, réduit les rides et corrige les taches, 24h hydratation, non gras", besoins: ["rides", "teint"] },
+  { nom: "Anthelios UVmune 400 Fluide Oil Control SPF50+ - La Roche-Posay", etape: "spf", desc: "Très haute protection, toucher sec, effet matifiant 12h, peau grasse et sensible", besoins: ["pores", "sensibilite"] },
+  { nom: "Crème anti-âge SPF50 - La Roche-Posay",        etape: "spf", desc: "Protection solaire + soin anti-âge", besoins: ["rides"] },
+  { nom: "Crème Hydratante Visage AM SPF30 - CeraVe",    etape: "spf", desc: "Hydrate toute la journée + protection UV, peaux normales à sèches, 3 céramides + niacinamide + acide hyaluronique", besoins: ["hydratation"] },
+
+  { nom: "UV.Skin - NHCO",                               etape: "complements", desc: "Complément solaire, protection cellulaire, 27 actifs (L-Tyrosine, collagène, antioxydants), 56 gélules (4-8 semaines)", besoins: ["teint"] },
+  { nom: "L-AminoSkin - NHCO",                           etape: "complements", desc: "Complément anti-âge, collagène repulpeur (matin) + teint uniforme (soir), 56+56 gélules (4-8 semaines)", besoins: ["rides", "teint"] },
+  { nom: "Aquaderm - NHCO",                              etape: "complements", desc: "Complément anti-rides repulpeur raffermissant, hydro-peptides de collagène + Aloe vera, 20 sticks (saveur abricot)", besoins: ["rides"] },
+  { nom: "Zinc Amino-Chélaté - NHCO",                    etape: "complements", desc: "Complément pour les imperfections, qualité/assimilation/tolérance optimisées, 84 gélules (12 semaines)", besoins: ["imperfections"] },
+  { nom: "L-EmbéSkin - NHCO",                            etape: "complements", desc: "Complément peau grasse ou à imperfections, 16 actifs (lysine, bardane, pensée sauvage), 42 comprimés (3-6 semaines)", besoins: ["imperfections", "pores"] }
 ];
+
+// ---- Catalogue en direct depuis Google Sheets ----
+// 1. Colle ici le lien "Publier sur le web" (format CSV) de ton Google Sheet.
+// 2. Tant que ce lien est vide, l'appli utilise FALLBACK_PRODUCTS ci-dessus.
+const CATALOG_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfArPUW26l3vFqURmNM7-H3lTdwEF7qHTPAMj1PzQ6X3Opvl1PYdRljtOuI-BM0aDpby0iRIy5u_zM/pub?output=csv";
+
+let PRODUCTS = FALLBACK_PRODUCTS;
+
+async function loadCatalogFromSheet() {
+  if (!CATALOG_SHEET_URL) return;
+  try {
+    const res = await fetch(CATALOG_SHEET_URL);
+    if (!res.ok) throw new Error("Réponse HTTP " + res.status);
+    const text = await res.text();
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    const mapped = parsed.data.map(r => ({
+      nom: (r.nom || "").trim(),
+      etape: (r.etape || "").trim().toLowerCase(),
+      desc: (r.desc || "").trim(),
+      besoins: (r.besoins || "").split(",").map(s => s.trim()).filter(Boolean),
+      defaut: (r.defaut || "").toString().trim().toUpperCase() === "TRUE"
+    })).filter(p => p.nom && p.etape);
+
+    if (mapped.length > 0) {
+      PRODUCTS = mapped;
+      console.log("Catalogue chargé depuis Google Sheet :", PRODUCTS.length, "produits");
+    }
+  } catch (err) {
+    console.warn("Impossible de charger le catalogue depuis Google Sheet, utilisation du catalogue de secours :", err);
+  }
+}
+
+const catalogReady = loadCatalogFromSheet();
 
 function buildRoutine(detectedKeys) {
   const routine = {};
@@ -683,7 +765,7 @@ function loadPhotoFromDataUrl(dataUrl) {
     }
     cropState.naturalW = cropImg.naturalWidth;
     cropState.naturalH = cropImg.naturalHeight;
-    zoomSlider.value = 100;
+    zoomSlider.value = 170;
     cropStep.style.display = 'block';
     initCrop();
   };
@@ -703,7 +785,7 @@ function loadPhotoFromDataUrl(dataUrl) {
 function initCrop() {
   const size = cropWrap.clientWidth;
   cropState.baseScale = Math.max(size / cropState.naturalW, size / cropState.naturalH);
-  cropState.zoom = 1;
+  cropState.zoom = zoomSlider.value / 100;
   centerCrop();
   applyCropTransform();
 }
@@ -926,6 +1008,7 @@ async function analyzeWithAI(base64, mediaType) {
 async function runAnalysis() {
   resultZone.innerHTML = '<div class="loading">Analyse de la photo en cours (IA)…</div>';
   clearCanvas();
+  await catalogReady;
 
   const seedStr = preview.src + '|' + profile.type + '|' + profile.age + '|' + profile.concern;
   rng = mulberry32(hashCode(seedStr));
