@@ -162,6 +162,29 @@
     font-weight: 600;
     text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   }
+  .brightness-badge {
+    position: absolute;
+    top: 38px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: white;
+    background: rgba(0,0,0,0.45);
+    display: none;
+  }
+  .brightness-badge.ok { background: rgba(47,111,94,0.85); }
+  .brightness-badge.warn { background: rgba(201,84,46,0.9); }
+  .brightness-note {
+    text-align: center;
+    font-size: 0.76rem;
+    font-weight: 600;
+    margin: 6px 0 0;
+  }
+  .brightness-note.ok { color: #2f6f5e; }
+  .brightness-note.warn { color: #c9542e; }
   .camera-controls {
     position: absolute;
     bottom: 14px;
@@ -499,6 +522,7 @@
       <video id="camera-video" autoplay playsinline muted></video>
       <div class="face-guide"></div>
       <div class="camera-hint">Cadre ton visage dans l'ovale</div>
+      <div class="brightness-badge" id="brightness-badge">💡 Luminosité</div>
       <div class="camera-controls">
         <button class="camera-cancel" id="camera-cancel" onclick="closeCamera()">Annuler</button>
         <button class="camera-shutter" id="camera-shutter" onclick="shutterCapture()">📸</button>
@@ -510,6 +534,7 @@
         <img id="crop-img" alt="Photo à recadrer">
         <div class="crop-guide"></div>
       </div>
+      <p class="brightness-note" id="crop-brightness-note"></p>
       <p class="crop-hint">Déplace et zoome pour bien centrer le visage dans l'ovale</p>
       <div class="zoom-row">
         <span>🔍</span>
@@ -768,6 +793,12 @@ function loadPhotoFromDataUrl(dataUrl) {
     zoomSlider.value = 170;
     cropStep.style.display = 'block';
     initCrop();
+
+    const value = measureBrightness(cropImg, cropImg.naturalWidth, cropImg.naturalHeight);
+    const { text, level } = brightnessLabel(value);
+    const noteEl = document.getElementById('crop-brightness-note');
+    noteEl.textContent = text;
+    noteEl.className = 'brightness-note ' + level;
   };
   cropImg.onerror = () => {
     resultZone.innerHTML = `
@@ -903,6 +934,7 @@ async function openCamera() {
     photoWrap.style.display = 'none';
     analyzeBtn.style.display = 'none';
     resultZone.innerHTML = '';
+    startBrightnessMonitor();
   } catch (err) {
     console.warn('Caméra live indisponible :', err);
     showCameraUnavailable();
@@ -929,6 +961,49 @@ function closeCamera() {
     cameraStream = null;
   }
   cameraView.style.display = 'none';
+  stopBrightnessMonitor();
+}
+
+// ---- Mesure de luminosité (moyenne des pixels, échelle 0-255) ----
+const brightnessCanvas = document.createElement('canvas');
+brightnessCanvas.width = 40;
+brightnessCanvas.height = 40;
+const brightnessCtx = brightnessCanvas.getContext('2d', { willReadFrequently: true });
+
+function measureBrightness(source, sw, sh) {
+  brightnessCtx.drawImage(source, 0, 0, sw, sh, 0, 0, 40, 40);
+  const data = brightnessCtx.getImageData(0, 0, 40, 40).data;
+  let total = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+  }
+  return total / (data.length / 4);
+}
+
+function brightnessLabel(value) {
+  if (value < 70) return { text: '💡 Trop sombre — rapproche-toi d\'une source de lumière', level: 'warn' };
+  if (value > 210) return { text: '💡 Trop forte — évite le contre-jour ou le flash direct', level: 'warn' };
+  return { text: '💡 Luminosité correcte', level: 'ok' };
+}
+
+let brightnessInterval = null;
+const brightnessBadge = document.getElementById('brightness-badge');
+
+function startBrightnessMonitor() {
+  brightnessBadge.style.display = 'block';
+  brightnessInterval = setInterval(() => {
+    if (!cameraVideo.videoWidth) return;
+    const value = measureBrightness(cameraVideo, cameraVideo.videoWidth, cameraVideo.videoHeight);
+    const { text, level } = brightnessLabel(value);
+    brightnessBadge.textContent = text;
+    brightnessBadge.className = 'brightness-badge ' + level;
+  }, 600);
+}
+
+function stopBrightnessMonitor() {
+  if (brightnessInterval) clearInterval(brightnessInterval);
+  brightnessInterval = null;
+  brightnessBadge.style.display = 'none';
 }
 
 function shutterCapture() {
